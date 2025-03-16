@@ -21,7 +21,6 @@
     <script>
         async function main() {
             window.pyodide = await loadPyodide();
-            await pyodide.loadPackage(["matplotlib", "numpy"]);
             console.log("Pyodide cargado correctamente");
         }
         
@@ -37,18 +36,10 @@
 
                 let code = `
 import math
-import matplotlib.pyplot as plt
-import numpy as np
-import io, base64
 
 ciudad = "${ciudad}"
 latitud = ${latitud}
 diasdelaño = [15, 46, 74, 105, 135, 166, 196, 227, 258, 288, 319, 349]
-
-horasdesol = []
-horanoche = []
-deltagraf = []
-diasgrafica = []
 
 tabla = ""
 for n in diasdelaño:
@@ -58,43 +49,18 @@ for n in diasdelaño:
     hora = (2 / 15) * math.degrees(math.acos(-tanphi * tandelta))
     horanoche_valor = 24 - hora
 
-    horasdesol.append(hora)
-    horanoche.append(horanoche_valor)
-    deltagraf.append(delta)
-    diasgrafica.append(n)
-
     horaentera = int(hora)
     minutoshora = round((hora - horaentera) * 60)
     horanocheentera = int(horanoche_valor)
     minutoshoranoche = round((horanoche_valor - horanocheentera) * 60)
     tabla += f"<p>Día {n}: Día: {horaentera:02}:{minutoshora:02}, Noche: {horanocheentera:02}:{minutoshoranoche:02}</p>"
 
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
-ax1.plot(diasgrafica, horasdesol, 'yo-', label='Horas de sol')
-ax1.plot(diasgrafica, horanoche, 'bo-', label='Horas de noche')
-ax1.set_xlabel('Día del año')
-ax1.set_ylabel('Horas')
-ax1.set_title(f'Horas de sol y noche en {ciudad}')
-ax1.legend()
-ax1.grid()
-
-ax2.plot(diasgrafica, deltagraf, 'go-', label='Declinación solar')
-ax2.set_xlabel('Día del año')
-ax2.set_ylabel('Delta (°)')
-ax2.set_title(f'Declinación solar en {ciudad}')
-ax2.legend()
-ax2.grid()
-
-buf = io.BytesIO()
-plt.savefig(buf, format='png')
-buf.seek(0)
-img_base64 = base64.b64encode(buf.read()).decode('utf-8')
-output = {'tabla': tabla, 'image': img_base64}
-""";
+output = tabla
+                `;
 
                 let result = await pyodide.runPythonAsync(code);
                 let output = pyodide.globals.get("output").toJs();
-                outputDiv.innerHTML = output.tabla + `<br><img src="data:image/png;base64,${output.image}" width="700">`;
+                outputDiv.innerHTML = output;
                 console.log("Cálculo completado");
             } catch (error) {
                 console.error("Error en la ejecución:", error);
