@@ -4,68 +4,92 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Calculadora de Declinación Solar</title>
-    <script src="https://cdn.jsdelivr.net/pyodide/v0.24.0/full/pyodide.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 20px;
+        }
+        canvas {
+            max-width: 600px;
+            margin: 20px auto;
+        }
+    </style>
 </head>
 <body>
     <h2>Calculadora de Declinación Solar</h2>
     <label for="ciudad">Nombre de la ciudad:</label>
-    <input type="text" id="ciudad" placeholder="Ej. Madrid">
+    <input type="text" id="ciudad" placeholder="Ingrese ciudad">
     <br><br>
     <label for="latitud">Latitud:</label>
-    <input type="number" id="latitud" step="0.01" placeholder="Ej. 40.42">
+    <input type="number" id="latitud" placeholder="Ingrese latitud">
     <br><br>
-    <button onclick="calcular()">Calcular</button>
-    <br><br>
-    <div id="output"></div>
+    <button onclick="calcularDeclinacion()">Calcular</button>
     
+    <h3>Resultados</h3>
+    <table border="1" style="margin: auto;">
+        <tr>
+            <th>Día</th>
+            <th>Horas de Sol</th>
+            <th>Horas de Noche</th>
+        </tr>
+        <tbody id="tablaResultados"></tbody>
+    </table>
+    
+    <canvas id="graficaSol"></canvas>
+    <canvas id="graficaDeclinacion"></canvas>
+
     <script>
-        async function main() {
-            window.pyodide = await loadPyodide();
-            console.log("Pyodide cargado correctamente");
-        }
-        
-        main(); // Cargar Pyodide al inicio
+        function calcularDeclinacion() {
+            const ciudad = document.getElementById("ciudad").value;
+            const latitud = parseFloat(document.getElementById("latitud").value);
+            const diasdelaño = [15, 46, 74, 105, 135, 166, 196, 227, 258, 288, 319, 349];
+            let horasdesol = [];
+            let horanoche = [];
+            let deltagraf = [];
+            let tablaHTML = "";
 
-        async function calcular() {
-            try {
-                let ciudad = document.getElementById("ciudad").value;
-                let latitud = parseFloat(document.getElementById("latitud").value);
-                let outputDiv = document.getElementById("output");
-                outputDiv.innerHTML = "Calculando...";
-                console.log("Iniciando cálculo para", ciudad, "con latitud", latitud);
+            diasdelaño.forEach(n => {
+                let delta = 23.45 * Math.sin(((n - 81) * 360 / 365) * (Math.PI / 180));
+                let tandelta = Math.tan(delta * (Math.PI / 180));
+                let tanphi = Math.tan(latitud * (Math.PI / 180));
+                let hora = (2 / 15) * (Math.acos(-tanphi * tandelta) * (180 / Math.PI));
+                let horanoche_valor = 24 - hora;
+                horasdesol.push(hora);
+                horanoche.push(horanoche_valor);
+                deltagraf.push(delta);
 
-                let code = `
-import math
+                let horaentera = Math.floor(hora);
+                let minutoshora = Math.round((hora - horaentera) * 60);
+                let horanocheentera = Math.floor(horanoche_valor);
+                let minutoshoranoche = Math.round((horanoche_valor - horanocheentera) * 60);
 
-ciudad = "${ciudad}"
-latitud = ${latitud}
-diasdelaño = [15, 46, 74, 105, 135, 166, 196, 227, 258, 288, 319, 349]
+                tablaHTML += `<tr><td>${n}</td><td>${horaentera}:${minutoshora}</td><td>${horanocheentera}:${minutoshoranoche}</td></tr>`;
+            });
 
-tabla = ""
-for n in diasdelaño:
-    delta = 23.45 * math.sin(math.radians(((n - 81) * 360) / 365))
-    tandelta = math.tan(math.radians(delta))
-    tanphi = math.tan(math.radians(latitud))
-    hora = (2 / 15) * math.degrees(math.acos(-tanphi * tandelta))
-    horanoche_valor = 24 - hora
+            document.getElementById("tablaResultados").innerHTML = tablaHTML;
 
-    horaentera = int(hora)
-    minutoshora = round((hora - horaentera) * 60)
-    horanocheentera = int(horanoche_valor)
-    minutoshoranoche = round((horanoche_valor - horanocheentera) * 60)
-    tabla += f"<p>Día {n}: Día: {horaentera:02}:{minutoshora:02}, Noche: {horanocheentera:02}:{minutoshoranoche:02}</p>"
+            new Chart(document.getElementById("graficaSol"), {
+                type: "line",
+                data: {
+                    labels: diasdelaño,
+                    datasets: [
+                        { label: "Horas de Sol", data: horasdesol, borderColor: "gold", fill: false },
+                        { label: "Horas de Noche", data: horanoche, borderColor: "blue", fill: false }
+                    ]
+                },
+                options: { responsive: true }
+            });
 
-output = tabla
-                `;
-
-                let result = await pyodide.runPythonAsync(code);
-                let output = pyodide.globals.get("output").toJs();
-                outputDiv.innerHTML = output;
-                console.log("Cálculo completado");
-            } catch (error) {
-                console.error("Error en la ejecución:", error);
-                document.getElementById("output").innerHTML = "Error en el cálculo. Ver la consola para más detalles.";
-            }
+            new Chart(document.getElementById("graficaDeclinacion"), {
+                type: "line",
+                data: {
+                    labels: diasdelaño,
+                    datasets: [{ label: "Declinación Solar", data: deltagraf, borderColor: "green", fill: false }]
+                },
+                options: { responsive: true }
+            });
         }
     </script>
 </body>
