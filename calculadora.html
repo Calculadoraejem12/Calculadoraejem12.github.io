@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora de Declinación Solar</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        #resultados {
+            margin-top: 20px;
+        }
+        canvas {
+            border: 1px solid #000;
+        }
+    </style>
+</head>
+<body>
+    <h1>Calculadora de Declinación Solar</h1>
+    <label for="ciudad">Ciudad: </label>
+    <input type="text" id="ciudad" placeholder="Nombre de la ciudad"><br>
+    <label for="latitud">Latitud: </label>
+    <input type="number" id="latitud" step="0.01" placeholder="Latitud"><br>
+    <label for="longitud">Longitud: </label>
+    <input type="number" id="longitud" step="0.01" placeholder="Longitud"><br>
+    <label for="dia_adicional">Día del año (1-365): </label>
+    <input type="number" id="dia_adicional" min="1" max="365"><br>
+    <label for="hora_especifica">Hora (decimal): </label>
+    <input type="number" id="hora_especifica" step="0.01" placeholder="Ej. 13.5 para las 13:30"><br>
+    <button onclick="calcularDeclinacionSolar()">Calcular</button>
+
+    <div id="resultados"></div>
+
+    <h2>Gráficas</h2>
+    <canvas id="grafica1" width="600" height="400"></canvas>
+    <canvas id="grafica2" width="600" height="400"></canvas>
+    <canvas id="grafica3" width="600" height="400"></canvas>
+
+    <script>
+        function calcularDeclinacionSolar() {
+            let ciudad = document.getElementById("ciudad").value;
+            let latitud = parseFloat(document.getElementById("latitud").value);
+            let longitud = parseFloat(document.getElementById("longitud").value);
+            let diaAdicional = parseInt(document.getElementById("dia_adicional").value);
+            let horaEspecifica = parseFloat(document.getElementById("hora_especifica").value);
+
+            let diasdelaño = [15, 46, 74, 105, 135, 166, 196, 227, 258, 288, 319, 349];
+            let diasgrafica = [], deltagraf = [], horasdesol = [], horanoche = [], eotgraf = [], horarios = [];
+            let HRA_especifico = null;
+
+            // Insertar el día solicitado de manera ordenada en la lista
+            diasdelaño.push(diaAdicional);
+            diasdelaño.sort((a, b) => a - b);
+
+            let resultados = `<h3>Resultados para ${ciudad}</h3>`;
+            resultados += `<table border="1"><tr><th>Día</th><th>HRA (°)</th><th>Horas de Sol</th><th>Horas sin Sol</th></tr>`;
+
+            diasdelaño.forEach(function(n) {
+                let delta = 23.45 * Math.sin(Math.radians(((n - 81) * 360) / 365));
+                let tandelta = Math.tan(Math.radians(delta));
+                let tanphi = Math.tan(Math.radians(latitud));
+                let hora = (2 / 15) * Math.degrees(Math.acos(-tanphi * tandelta));
+                let horanoche_valor = 24 - hora;
+
+                let horaentera = Math.floor(hora);
+                let minutosentero = Math.round((hora - horaentera) * 60);
+                let horanocheentera = Math.floor(horanoche_valor);
+                let minutosenterohoranoche = Math.round((horanoche_valor - horanocheentera) * 60);
+
+                let B = (360 / 365) * (n - 81);
+                let EoT = 229.18 * (0.000075 + 0.001868 * Math.cos(Math.radians(B)) - 0.032077 * Math.sin(Math.radians(B))
+                    - 0.014615 * Math.cos(Math.radians(2 * B)) - 0.040849 * Math.sin(Math.radians(2 * B)));
+
+                let LSTM = 15 * Math.round(longitud / 15);
+                let TC = 4 * (longitud - LSTM) + EoT;
+                let LST = hora + TC / 60;
+                let HRA = 15 * (LST - 12);
+
+                // Si es el día solicitado, calculamos el ángulo horario para la hora específica
+                if (n === diaAdicional && HRA_especifico === null) {
+                    HRA_especifico = 15 * (horaEspecifica - 12);
+                    resultados += `<p>Ángulo horario para el día ${diaAdicional} a las ${horaEspecifica} horas: ${HRA_especifico.toFixed(2)}°</p>`;
+                }
+
+                resultados += `<tr><td>${n}</td><td>${HRA.toFixed(2)}</td><td>${horaentera}:${minutosentero}</td><td>${horanocheentera}:${minutosenterohoranoche}</td></tr>`;
+
+                // Almacenar datos para gráficas
+                horasdesol.push(hora);
+                horanoche.push(horanoche_valor);
+                diasgrafica.push(n);
+                deltagraf.push(delta);
+                eotgraf.push(EoT);
+                horarios.push(HRA);
+            });
+
+            resultados += `</table>`;
+            document.getElementById("resultados").innerHTML = resultados;
+
+            // Gráficas
+            plotGrafica('grafica1', diasgrafica, horasdesol, horanoche);
+            plotGrafica('grafica2', diasgrafica, deltagraf);
+            plotGrafica('grafica3', diasgrafica, eotgraf);
+        }
+
+        function plotGrafica(canvasId, xData, yData1, yData2 = null) {
+            let ctx = document.getElementById(canvasId).getContext('2d');
+            let chartData = {
+                labels: xData,
+                datasets: [{
+                    label: yData2 ? "Horas de noche" : "Horas de sol",
+                    data: yData1,
+                    borderColor: yData2 ? 'blue' : 'yellow',
+                    backgroundColor: yData2 ? 'blue' : 'yellow',
+                    fill: false,
+                    tension: 0.1
+                }]
+            };
+
+            if (yData2) {
+                chartData.datasets.push({
+                    label: "Horas de sol",
+                    data: yData2,
+                    borderColor: 'green',
+                    backgroundColor: 'green',
+                    fill: false,
+                    tension: 0.1
+                });
+            }
+
+            new Chart(ctx, {
+                type: 'line',
+                data: chartData,
+                options: {
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Día'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Horas'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        Math.radians = function(degrees) {
+            return degrees * Math.PI / 180;
+        };
+        Math.degrees = function(radians) {
+            return radians * 180 / Math.PI;
+        };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</body>
+</html>
+
+
